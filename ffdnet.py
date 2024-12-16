@@ -6,7 +6,6 @@ import time
 
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 import torch.optim as optim
 from torch.autograd import Variable
 from torch.utils.data import DataLoader
@@ -76,8 +75,8 @@ def train(args):
     print(f'\tVal patch datasets: {val_dataset.shape}')
 
     # DataLoader
-    train_dataloader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True, num_workers=6)
-    val_dataloader = DataLoader(val_dataset, batch_size=args.batch_size, shuffle=False, num_workers=6)
+    train_dataloader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True, num_workers=0)
+    val_dataloader = DataLoader(val_dataset, batch_size=args.batch_size, shuffle=False, num_workers=0)
     print(f'\tTrain batch number: {len(train_dataloader)}')
     print(f'\tVal batch number: {len(val_dataloader)}')
 
@@ -307,3 +306,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+# python ffdnet.py --use_gpu --is_train --train_path 'C:/Users/takao/Desktop/denoising_collected_data/images_thermal_FLIR/images_thermal_train_resized_clean' --model_path './models/' --batch_size 128 --epoches 20 --val_epoch 5 --patch_size 32 --save_checkpoints 5 --train_noise_interval 15 75 15 --val_noise_interval 30 60 30
