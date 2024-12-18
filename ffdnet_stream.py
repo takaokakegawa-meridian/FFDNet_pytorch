@@ -1,8 +1,11 @@
 import argparse
+import sys
 import cv2 as cv
 import numpy as np
 import torch
 from model import FFDNet
+from senxor.utils import connect_senxor, data_to_frame, remap
+
 
 def prep_input(frame: np.ndarray) -> torch.Tensor:
     """function to prepare mi48 frame as input for model inference
@@ -17,9 +20,14 @@ def prep_input(frame: np.ndarray) -> torch.Tensor:
 
 
 def test_gray(args):
-    # load image
-    frame = cv.imread(args.test_path, cv.IMREAD_GRAYSCALE)
-    image = prep_input(frame)
+    mi48 = connect_senxor()
+    mi48.start(stream=True, with_header=True)
+    data, _ = mi48.read()
+    if data is None:
+        mi48.stop()
+        sys.exit(1)
+    
+    ncols, nrows = mi48.fpa_shape
 
     # load model
     model = FFDNet(is_gray=True)
@@ -35,18 +43,30 @@ def test_gray(args):
     state_dict = torch.load(model_path)
     model.load_state_dict(state_dict)
     model.eval()
-    print('\n')
 
-    with torch.no_grad():
-        image_pred = torch.squeeze(model(image, noise_sigma).cpu()).numpy()
-        image_pred = (image_pred*255.).clip(0, 255).astype(np.uint8)
-        print(image_pred.shape)
-    
+    cv.namedWindow("raw")
+    cv.namedWindow("denoise")
     SCALE = 3
-    cv.imshow("raw", cv.resize(frame, dsize=None, fx=SCALE, fy=SCALE, interpolation=cv.INTER_CUBIC))
-    cv.imshow("new", cv.resize(image_pred, dsize=None, fx=SCALE, fy=SCALE, interpolation=cv.INTER_CUBIC))
-    cv.waitKey(0)
-    cv.destroyAllWindows()
+    
+    with torch.no_grad():
+            while True:
+                data, _ = mi48.read()
+                if data is None:
+                    mi48.stop()
+                    sys.exit(1)
+                
+                frame = remap(data_to_frame(data, (ncols, nrows)))
+                image = prep_input(frame)    
+                image_pred = torch.squeeze(model(image, noise_sigma).cpu()).numpy()
+                image_pred = (image_pred*255.).clip(0, 255).astype(np.uint8)
+    
+                cv.imshow("raw", cv.resize(frame, dsize=None, fx=SCALE, fy=SCALE, interpolation=cv.INTER_CUBIC))
+                cv.imshow("new", cv.resize(image_pred, dsize=None, fx=SCALE, fy=SCALE, interpolation=cv.INTER_CUBIC))
+                key = cv.waitKey(1)  # & 0xFF
+                if key == ord("q"):
+                    break
+            mi48.stop()
+            cv.destroyAllWindows()
 
 
 
