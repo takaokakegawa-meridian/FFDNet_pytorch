@@ -91,7 +91,14 @@ def train(args):
 
     # Model & Optim
     model = FFDNet(is_gray=args.is_gray)
-    model.apply(utils.weights_init_kaiming)
+    retrainPATH = r"models\net_gray.pth"
+    if os.path.exists(retrainPATH):
+        print("PRETRAIN MODEL IS LOADED ...")
+        state_dict = torch.load(retrainPATH)
+        model.load_state_dict(state_dict)
+        model.train()
+    else:
+        model.apply(utils.weights_init_kaiming)
     if args.cuda:
         model = model.cuda()
     loss_fn = nn.MSELoss(reduction='sum')
@@ -142,10 +149,14 @@ def train(args):
         train_losses /= loss_idx
         print(f', Avg_Train_Loss: {train_losses}, All: {int(stop_time - start_time)}s')
         
+        with torch.no_grad():   # attempt to handle clearing cache
+            torch.cuda.empty_cache()
+
         # Evaluate
         loss_idx = 0
         val_losses = 0
         if (epoch_idx + 1) % args.val_epoch != 0:
+
             continue
         model.eval()
         
@@ -191,7 +202,7 @@ def train(args):
 
     # Final Save Model Dict
     model.eval()
-    model_path = args.model_path + ('net_gray.pth' if args.is_gray else 'net_rgb.pth')
+    model_path = args.model_path.replace('"', '') + ('net_gray.pth' if args.is_gray else 'net_rgb.pth')
     torch.save(model.state_dict(), model_path)
     print(f'Saved State Dict in {model_path}')
     print('\n')
@@ -229,7 +240,7 @@ def test(args):
         model = model.cuda()
 
     # Dict
-    model_path = args.model_path + ('net_gray.pth' if is_gray else 'net_rgb.pth')
+    model_path = args.model_path.replace('"', '') + ('net_gray.pth' if is_gray else 'net_rgb.pth')
     print(f"> Loading model param in {model_path}...")
     state_dict = torch.load(model_path)
     model.load_state_dict(state_dict)
@@ -240,6 +251,7 @@ def test(args):
     with torch.no_grad():
         start_time = time.time()
         image_pred = model(image, noise_sigma)
+        print("image_pred shape:", image_pred.shape)
         stop_time = time.time()
         print("Test time: {0:.4f}s".format(stop_time - start_time))
 
@@ -308,3 +320,4 @@ if __name__ == "__main__":
     main()
 
 # python ffdnet.py --use_gpu --is_train --train_path 'C:/Users/takao/Desktop/denoising_collected_data/images_thermal_FLIR/images_thermal_train_resized_clean' --model_path './models/' --batch_size 128 --epoches 20 --val_epoch 5 --patch_size 32 --save_checkpoints 5 --train_noise_interval 15 75 15 --val_noise_interval 30 60 30
+# python ffdnet.py --use_gpu --is_test --test_path './test_data/gray.jpg' --model_path './models/' --add_noise --noise_sigma 30
